@@ -9,7 +9,7 @@ JQ_PHONE = "13142080234"
 JQ_PWD = "123456Abc!"
 
 # 代理服务器配置
-PROXY_HOST = "127.0.0.1"
+PROXY_HOST = "0.0.0.0"
 PROXY_PORT = 8888
 # 代理入口鉴权 token
 PROXY_TOKEN = "wobeidaohao"
