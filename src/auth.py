@@ -129,19 +129,8 @@ class JQAuth:
         return self.cookies
 
     async def refresh_cookies_after_auth_failure(self):
-        """后端明确要求登录后，再校验并按需重登"""
-        if not self.cookies:
-            return await self.get_request_cookies()
-
-        login_status = await self.check_login_status()
-        if login_status is True:
-            return self.cookies
-
-        if login_status is None:
-            logger.warning("登录状态检查失败，尝试直接重新登录")
-        else:
-            logger.info("会话已失效, 尝试重新登录")
-
+        """后端明确要求登录时，直接强制重新登录并刷新 Jupyter 相关 Cookie"""
+        logger.info("后端要求重新鉴权，强制重新登录聚宽并刷新 Cookie")
         if not await self.login():
             logger.error("自动登录失败")
             return None
