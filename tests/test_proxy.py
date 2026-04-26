@@ -112,6 +112,10 @@ class ProxyTests(unittest.TestCase):
         self.assertIn(proxy_module.PROXY_AUTH_COOKIE_NAME, response.headers["set-cookie"])
         self.assertNotIn("token=wobeidaohao", _FakeAsyncClient.requests[-1]["url"])
 
+    def test_unconfigured_password_is_not_valid_when_token_is_configured(self):
+        self.assertFalse(proxy_module._is_valid_proxy_password(None))
+        self.assertFalse(proxy_module._is_valid_proxy_password(""))
+
     def test_http_proxy_returns_502_when_backend_request_fails(self):
         request = proxy_module.httpx.Request("GET", "https://www.joinquant.com/user/58026470838/tree")
         _FakeAsyncClient.events = [
@@ -165,6 +169,28 @@ class ProxyTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text, "ok")
         self.refresh_mock.assert_awaited_once()
+
+    def test_http_proxy_hides_jupyterhub_management_api(self):
+        response = self.client.get("/hub/api", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.text, "Not Found")
+        self.assertEqual(_FakeAsyncClient.send_count, 0)
+        self.cookie_mock.assert_not_awaited()
+
+    def test_http_proxy_hides_jupyterhub_user_token_api(self):
+        response = self.client.post("/hub/api/users/1/tokens", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.text, "Not Found")
+        self.assertEqual(_FakeAsyncClient.send_count, 0)
+        self.cookie_mock.assert_not_awaited()
+
+    def test_http_proxy_allows_jupyterhub_oauth_authorize_path(self):
+        response = self.client.get("/hub/api/oauth2/authorize", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(_FakeAsyncClient.send_count, 1)
 
     def test_build_filtered_query_string_removes_proxy_token(self):
         query = proxy_module.httpx.QueryParams([

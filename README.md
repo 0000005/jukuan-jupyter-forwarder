@@ -23,6 +23,26 @@
 - `src/auth.py` 负责检查登录状态、执行登录流程，并将 Cookie 持久化到本地 `cookies.json`。
 - 当聚宽登录状态检查出现瞬时网络异常时，代理会优先保留当前 Cookie，避免误判为会话失效并频繁重登。
 
+## VS Code 正确用法
+
+推荐使用 VS Code Remote SSH 连接云服务器后，再在远程 VS Code 窗口里连接 Jupyter：
+
+1. 先在云服务器上启动代理服务：
+
+   ```bash
+   python src/proxy.py
+   ```
+
+2. 在本地 VS Code 中使用 Remote SSH 连接这台云服务器。
+3. 在远程 VS Code 窗口中选择 Python 内核 / Existing Jupyter Server。
+4. Jupyter Server 地址填写：
+
+   ```text
+   http://127.0.0.1:8888
+   ```
+
+当前推荐配置下无需填写 token、password 或其他认证信息。`8888` 端口只监听云服务器本机的 `127.0.0.1`，不直接暴露到公网；通过 VS Code Remote 模式访问时，请求发生在远程服务器内部，因此既能连接代理，也避免开放额外公网端口。
+
 ## 适用场景
 
 - 本地 IDE 连接聚宽 Jupyter。

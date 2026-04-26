@@ -115,7 +115,7 @@ def _proxy_auth_enabled() -> bool:
 
 def _is_valid_proxy_token(value: str | None) -> bool:
     if not PROXY_TOKEN:
-        return True
+        return False
     if not value:
         return False
     return secrets.compare_digest(value, PROXY_TOKEN)
@@ -123,7 +123,7 @@ def _is_valid_proxy_token(value: str | None) -> bool:
 
 def _is_valid_proxy_password(value: str | None) -> bool:
     if not PROXY_PASSWORD:
-        return True
+        return False
     if not value:
         return False
     return secrets.compare_digest(value, PROXY_PASSWORD)
@@ -261,7 +261,9 @@ def _build_login_url(path: str, query_params) -> str:
 
 
 def _should_redirect_to_login(path: str, request: Request) -> bool:
-    if PROXY_AUTH_MODE in {"password", "both"}:
+    if PROXY_AUTH_MODE == "password" and PROXY_PASSWORD:
+        return False
+    if PROXY_AUTH_MODE == "both" and PROXY_PASSWORD:
         return False
     if request.method != "GET":
         return False
@@ -407,6 +409,15 @@ def _response_requires_reauth(response: httpx.Response) -> bool:
         return "/login" in location or "/hub/api/oauth2/authorize" in location
 
     return False
+
+
+def _is_jupyterhub_management_api(path: str) -> bool:
+    """Hide Hub REST APIs from clients that try to auto-detect JupyterHub."""
+    if path == "/hub/api":
+        return True
+    if not path.startswith("/hub/api/"):
+        return False
+    return not path.startswith("/hub/api/oauth2/authorize")
 
 
 async def _get_backend_client() -> httpx.AsyncClient:
@@ -562,6 +573,10 @@ async def jupyter_http_proxy(request: Request, full_path: str):
     query = _build_filtered_query_string(request.query_params)
     method = request.method
 
+    if _is_jupyterhub_management_api(path):
+        logger.info(f"Hiding JupyterHub management API from client: method={method} path={path}")
+        return Response(content="Not Found", status_code=404)
+
     is_authenticated, should_set_cookie, auth_source = _check_http_proxy_auth(request, path)
     if not is_authenticated:
         if _should_redirect_to_login(path, request):
@@ -581,7 +596,9 @@ async def jupyter_http_proxy(request: Request, full_path: str):
     # 构建请求头
     headers = dict(request.headers)
     headers.pop("host", None)
+    headers.pop("accept-encoding", None)
     headers.update({
+        "Accept-Encoding": "identity",
         "Referer": f"{JQ_BASE_URL}{JQ_JUPYTER_ROOT}/tree",
         "Origin": JQ_BASE_URL,
     })
@@ -628,7 +645,7 @@ async def jupyter_http_proxy(request: Request, full_path: str):
         if not backend_response:
             return Response(content="Proxy Internal Error", status_code=502)
 
-    exclude_headers = {"content-encoding", "transfer-encoding", "connection", "content-length"}
+    exclude_headers = {"transfer-encoding", "connection", "content-length"}
     resp_headers = {
         k: v for k, v in backend_response.headers.items()
         if k.lower() not in exclude_headers
